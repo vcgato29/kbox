@@ -1,0 +1,75 @@
+#!/bin/bash
+# kube-solo cli
+
+#
+app_path=/opt/kbox
+
+#
+up() {
+    "${app_path}"/up.command
+}
+
+setup() {
+    "${app_path}"/kube-solo-install.command $app_path
+}
+
+status() {
+    echo "$(~/bin/corectl q -a k8solo-01)"
+}
+
+ip() {
+    echo "$(~/bin/corectl q -i k8solo-01)"
+}
+
+ssh() {
+    ~/bin/corectl ssh k8solo-01
+}
+
+shell() {
+    "${app_path}"/os_shell.command
+}
+
+
+halt() {
+    "${app_path}"/halt.command
+}
+
+destroy() {
+    "${app_path}"/destroy.command
+	rm -rf ~/kube-solo
+}
+
+usage() {
+    echo "Usage: kbox setup|up|halt|destroy|status|ip|ssh|shell"
+}
+
+
+case "$1" in
+        setup)
+                setup
+                ;;
+        up)
+                up
+                ;;
+        halt)
+                halt
+                ;;
+        destroy)
+                destroy
+                ;;
+        status)
+                status
+                ;;
+        ip)
+                ip
+                ;;
+        ssh)
+                ssh
+                ;;
+        shell)
+                shell
+                ;;
+        *)
+                usage
+                ;;
+esac
