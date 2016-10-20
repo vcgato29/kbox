@@ -37,7 +37,7 @@ rsync -r --verbose --exclude 'helmc' --exclude 'helm' --exclude 'gen_kubeconfig'
 chmod 755 ~/kube-solo/bin/*
 
 # copy ksolo file to ~/bin
-cp -f "${res_folder}"/bin/ksolo ~/bin
+cp -f "${res_folder}"/bin/kbox ~/bin
 
 # add ssh key to Keychain
 if ! ssh-add -l | grep -q ssh/id_rsa; then
