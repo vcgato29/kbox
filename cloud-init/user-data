@@ -70,15 +70,12 @@ coreos:
         ExecStart=/bin/sh -c '[[ -d /data/opt/bin ]] || mkdir -p /data/opt/bin'
         ExecStart=/bin/sh -c '[[ -d /data/kubernetes/manifests ]] || mkdir -p /data/kubernetes/manifests'
         ExecStart=/bin/sh -c '[[ -d /etc/cni/net.d ]] || mkdir -p /etc/cni/net.d'
-        ExecStart=/bin/sh -c '[[ -d /opt/cni/bin ]] || mkdir -p /opt/cni/bin'
+        ExecStart=/bin/sh -c '[[ -d /opt/cni ]] || sudo mkdir -p /opt/cni && sudo ln -s /data/opt/cni/bin /opt/cni/'
         ExecStart=/bin/sh -c '[[ -d /data/kubelet ]] || mkdir -p /data/kubelet'
         ExecStart=/bin/sh -c 'sudo ln -s /data/kubelet /var/lib/kubelet'
         ExecStart=/bin/sh -c 'sudo mkdir -p /opt/bin/ && sudo ln -s /data/opt/bin/socat /opt/bin/socat'
         # api-router proxy host
         ExecStart=/bin/sh -c 'echo "$(hostname -i k8solo-01) controller.kolibox.io" |sudo tee -a /etc/hosts'
-        # Install CNI binaries for calico
-        ExecStart=/bin/sh -c 'curl https://github.com/containernetworking/cni/releases/download/v0.2.0/cni-v0.2.0.tgz -L |tar xz -C /opt/cni/bin'
-        ExecStart=/bin/sh -c 'curl -L -o /opt/bin/calicoctl http://www.projectcalico.org/builds/calicoctl && chmod +x /opt/bin/calicoctl'
     - name: var-lib-docker.mount
       command: start
       content: |

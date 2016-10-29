@@ -493,6 +493,9 @@ echo "Files copied to VM..."
 echo "Installing now ..."
 ~/bin/corectl ssh k8solo-01 'while [ ! -d /data/opt/bin ]; do sleep 1; done && sudo tar xzf /home/core/kube.tgz -C /data/opt/bin && sudo chmod 755 /data/opt/bin/*'
 ~/bin/corectl ssh k8solo-01 'sudo /usr/bin/mkdir -p /data/opt/tmp && sudo mv /data/opt/bin/easy-rsa.tar.gz /data/opt/tmp'
+
+~/bin/corectl ssh k8solo-01 'sudo /usr/bin/mkdir -p /data/opt/cni/bin && sudo mkdir -p /opt/cni'
+~/bin/corectl ssh k8solo-01 'sudo tar xzf /data/opt/bin/cni-v0.2.0.tgz -C /data/opt/cni/bin && sudo chmod 755 /data/opt/cni/bin && sudo ln -s /data/opt/cni/bin /opt/cni/bin'
 echo "Done..."
 }
 
@@ -517,7 +520,7 @@ echo " "
 echo "Configuring calico pool ..."
 docker_ip=$(~/bin/corectl ssh k8solo-01 "ip addr show docker0 |grep -Po 'inet \K[\d.]+'/24")
 echo "DOCKER0 Network IP: $docker_ip"
-~/bin/corectl ssh k8solo-01 "ETCD_ENDPOINTS=http://127.0.0.1:2379 /opt/bin/calicoctl pool add $docker_ip --nat-outgoing"
+~/bin/corectl ssh k8solo-01 "ETCD_ENDPOINTS=http://127.0.0.1:2379 /data/opt/bin/calicoctl pool add $docker_ip --nat-outgoing"
 
 echo " "
 echo "Installing calico ..."
