@@ -127,7 +127,7 @@ coreos:
             [Unit]
             Requires=flanneld.service
             [Service]
-            Environment=DOCKER_OPTS="DOCKER_OPTS=--insecure-registry=0.0.0.0/0 --storage-driver=overlay2"
+            Environment="DOCKER_OPTS=--insecure-registry=\"0.0.0.0/0\""
     - name: update-engine.service
       command: stop
     - name: kube-apiserver.service
