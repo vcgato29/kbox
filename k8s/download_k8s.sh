@@ -1,47 +1,35 @@
 #!/bin/bash
+set -eo pipefail
 
-#  download_k8s.command
-#  Kube-Solo for macOS
-#
-#  Created by Rimantas on 03/06/2015.
-#  Copyright (c) 2014 Rimantas Mocevicius. All rights reserved.
+BASEPATH=/opt/kbox/k8s/kube
 
-function pause(){
-read -p "$*"
-}
+echo "Downloading server binaries ..."
+curl --progress-bar -L https://dl.k8s.io/$1/kubernetes-server-linux-amd64.tar.gz -o /tmp/kube-linux-amd64-$1.tar.gz
+echo "Downloading kubectl binary for mac ..."
+curl --progress-bar -L https://dl.k8s.io/$1/kubernetes-client-darwin-amd64.tar.gz -o /tmp/kubectl.tar.gz
+tar -xvf /tmp/kubectl.tar.gz -C $BASEPATH
+tar -xvf /tmp/kube-linux-amd64-$1.tar.gz -C $BASEPATH
 
-rm -f kubectl
-rm -f *.tgz
+mv $BASEPATH/kubernetes/server/bin/kube-apiserver $BASEPATH/
+mv $BASEPATH/kubernetes/server/bin/kube-controller-manager $BASEPATH/
+mv $BASEPATH/kubernetes/server/bin/kube-proxy $BASEPATH/
+mv $BASEPATH/kubernetes/server/bin/kube-scheduler $BASEPATH/
+mv $BASEPATH/kubernetes/server/bin/kubelet $BASEPATH/
+mv $BASEPATH/kubernetes/client/bin/kubectl /opt/kbox/k8s/kubectl
+rm -f /opt/kbox/k8s/kube.tgz
+rm -rf $BASEPATH/kubernetes
+chmod +x /opt/kbox/k8s/kubectl
 
-# get latest k8s version
-function get_latest_version_number {
- local -r latest_url="https://storage.googleapis.com/kubernetes-release/release/stable.txt"
- curl -Ss ${latest_url}
-}
+echo ""
+echo "Packing it ..."
+COPYFILE_DISABLE=1 tar -czf /opt/kbox/k8s/kube.tgz -C kube .
 
-K8S_VERSION=$(get_latest_version_number)
+echo ""
+echo "Clean up ..."
+rm -f $BASEPATH/kube-apiserver
+rm -f $BASEPATH/kube-controller-manager
+rm -f $BASEPATH/kube-proxy
+rm -f $BASEPATH/kube-scheduler
+rm -f $BASEPATH/kubelet
+echo "Done."
 
-# download latest version of kubectl for macOS
-echo "Downloading kubectl $K8S_VERSION for macOS"
-curl -L https://storage.googleapis.com/kubernetes-release/release/$K8S_VERSION/bin/darwin/amd64/kubectl > kubectl
-chmod a+x kubectl
-
-# download latest version of linux k8s binaries
-mkdir kube
-bins=( kubelet kube-proxy kube-apiserver kube-scheduler kube-controller-manager )
-for b in "${bins[@]}"; do
-    curl -L https://storage.googleapis.com/kubernetes-release/release/$K8S_VERSION/bin/linux/amd64/$b > kube/$b
-done
-
-# copy socat file
-cp socat/socat kube
-#
-chmod a+x kube/*
-#
-curl -L https://storage.googleapis.com/kubernetes-release/easy-rsa/easy-rsa.tar.gz > kube/easy-rsa.tar.gz
-tar czvf kube.tgz -C kube .
-rm -f kube/*.*
-rm -f kube/*
-#
-echo "Download has finished !!!"
-pause 'Press [Enter] key to continue...'

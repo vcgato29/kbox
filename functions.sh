@@ -493,9 +493,6 @@ echo "Files copied to VM..."
 echo "Installing now ..."
 ~/bin/corectl ssh k8solo-01 'while [ ! -d /data/opt/bin ]; do sleep 1; done && sudo tar xzf /home/core/kube.tgz -C /data/opt/bin && sudo chmod 755 /data/opt/bin/*'
 ~/bin/corectl ssh k8solo-01 'sudo /usr/bin/mkdir -p /data/opt/tmp && sudo mv /data/opt/bin/easy-rsa.tar.gz /data/opt/tmp'
-
-~/bin/corectl ssh k8solo-01 'sudo /usr/bin/mkdir -p /data/opt/cni/bin && sudo mkdir -p /opt/cni'
-~/bin/corectl ssh k8solo-01 'sudo tar xzf /data/opt/bin/cni-v0.2.0.tgz -C /data/opt/cni/bin && sudo chmod 755 /data/opt/cni/bin && sudo ln -s /data/opt/cni/bin /opt/cni/bin'
 echo "Done..."
 }
 
@@ -516,54 +513,51 @@ echo "Creating kube-system namespace ..."
 ~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/kube-system-ns.yaml > /dev/null 2>&1
 
 # MOD
-echo " "
-echo "Configuring calico pool ..."
-docker_ip=$(~/bin/corectl ssh k8solo-01 "ip addr show docker0 |grep -Po 'inet \K[\d.]+'/24")
-echo "DOCKER0 Network IP: $docker_ip"
-~/bin/corectl ssh k8solo-01 "ETCD_ENDPOINTS=http://127.0.0.1:2379 /data/opt/bin/calicoctl pool add $docker_ip --nat-outgoing"
+#echo " "
+#echo "Configuring calico pool ..."
+#docker_ip=$(~/bin/corectl ssh k8solo-01 "ip addr show docker0 |grep -Po 'inet \K[\d.]+'/24")
+#echo "DOCKER0 Network IP: $docker_ip"
+#~/bin/corectl ssh k8solo-01 "ETCD_ENDPOINTS=http://127.0.0.1:2379 /data/opt/bin/calicoctl pool add $docker_ip --nat-outgoing"
 
 echo " "
 echo "Installing calico ..."
-~/kube-solo/bin/kubectl create -f http://docs.projectcalico.org/v1.5/getting-started/kubernetes/installation/hosted/calico.yaml
+~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/calico-hosted.yaml
 
-echo " "
-echo "Configuring the rbac super user ..."
-SYSTEM_TOKEN=$(~/kube-solo/bin/kubectl -n kube-system get secrets -o yaml |grep token: |awk {'print $2'} | base64 -D)
+# echo " "
+#echo "Configuring the rbac super user ..."
+#SYSTEM_TOKEN=$(~/kube-solo/bin/kubectl -n kube-system get secrets -o yaml |grep token: |awk {'print $2'} | base64 -D)
 vm_ip=$(~/bin/corectl q -i k8solo-01)
 
-echo "SYSTEM-TOKEN: ${SYSTEM_TOKEN}"
-~/kube-solo/bin/kubectl config set-cluster https --server=https://$vm_ip:6443 --insecure-skip-tls-verify=true
-~/kube-solo/bin/kubectl config set-credentials cluster-admin --token=$SYSTEM_TOKEN
-~/kube-solo/bin/kubectl config set-context cluster-admin --cluster https --user cluster-admin
-~/kube-solo/bin/kubectl config use-context cluster-admin
+#echo "SYSTEM-TOKEN: ${SYSTEM_TOKEN}"
+#~/kube-solo/bin/kubectl config set-cluster https --server=https://$vm_ip:6443 --insecure-skip-tls-verify=true
+#~/kube-solo/bin/kubectl config set-credentials cluster-admin --token=$SYSTEM_TOKEN
+#~/kube-solo/bin/kubectl config set-context cluster-admin --cluster https --user cluster-admin
+#~/kube-solo/bin/kubectl config use-context cluster-admin
 
-echo " "
-echo "Installing RBAC cluster policies ..."
-~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/cluster-role.yaml
-~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/cluster-role-binding.yaml
-~/kube-solo/bin/kubectl config use-context kube-solo
+#echo " "
+#echo "Installing RBAC cluster policies ..."
+#~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/cluster-role.yaml
+#~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/cluster-role-binding.yaml
+#~/kube-solo/bin/kubectl config use-context kube-solo
 # END MOD
 
 echo " "
-echo "Installing SkyDNS ..."
-~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/skydns-rc.yaml
-~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/skydns-svc.yaml
+echo "Installing DNS Addon ..."
+~/kube-solo/bin/kubectl create clusterrolebinding serviceaccounts-cluster-admin --clusterrole=cluster-admin --group=system:serviceaccounts
+~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/kubedns.yaml
+~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/kubedns-svc.yaml
 #
-echo " "
-echo "Installing Kubernetes Dashboard ..."
-~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/dashboard-service.yaml
-~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/dashboard-controller.yaml
-#
-echo " "
-echo "Installing Helm Tiller service ..."
-~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/tiller-deploy-service.yaml
+#echo " "
+#echo "Installing Kubernetes Dashboard ..."
+#~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/dashboard-service.yaml
+#~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/dashboard-controller.yaml
 #
 
 sleep 1
 # clean up kubernetes folder
 rm -f ~/kube-solo/kubernetes/kube-system-ns.yaml
-rm -f ~/kube-solo/kubernetes/skydns-rc.yaml
-rm -f ~/kube-solo/kubernetes/skydns-svc.yaml
+rm -f ~/kube-solo/kubernetes/kubedns.yaml
+rm -f ~/kube-solo/kubernetes/kubedns-svc.yaml
 rm -f ~/kube-solo/kubernetes/dashboard-controller.yaml
 rm -f ~/kube-solo/kubernetes/dashboard-service.yaml
 rm -f ~/kube-solo/kubernetes/cluster-role.yaml

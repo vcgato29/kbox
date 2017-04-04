@@ -5,16 +5,6 @@ hostname: k8solo-01
 coreos:
   update:
     reboot-strategy: off
-  etcd2:
-    name: k8solo-01
-    data-dir: /data/var/lib/etcd2
-    initial-advertise-peer-urls: http://k8solo-01:2380
-    initial-cluster-token: k8solo-01_etcd
-    initial-cluster: k8solo-01=http://k8solo-01:2380
-    initial-cluster-state: new
-    listen-peer-urls: http://k8solo-01:2380,http://k8solo-01:7001
-    listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
-    advertise-client-urls:  http://k8solo-01:2379,http://k8solo-01:4001
   units:
     - name: docker-tcp.socket
       command: start
@@ -44,9 +34,9 @@ coreos:
       content: |
         [Unit]
         Description=Mounts ephemeral to /data
-        Requires=format-persistent-disk.service etcd2.service docker.service rkt-metadata.socket
+        Requires=format-persistent-disk.service docker.service rkt-metadata.socket
         After=format-persistent-disk.service
-        Before=etcd2.service docker.service rkt-metadata.socket
+        Before=docker.service rkt-metadata.socket
         [Mount]
         What=/dev/vda
         Where=/data
@@ -56,8 +46,8 @@ coreos:
       content: |
         [Unit]
         Description=prepare for etcd,docker,rkt,opt,kubernetes
-        Requires=data.mount etcd2.service docker.service rkt-metadata.socket
-        Before=etcd2.service docker.service rkt-metadata.socket
+        Requires=data.mount docker.service rkt-metadata.socket
+        Before=docker.service rkt-metadata.socket
         After=data.mount
         [Service]
         Type=oneshot
@@ -106,8 +96,21 @@ coreos:
         Options=bind
         [Install]
         RequiredBy=rkt-metadata.socket
-    - name: etcd2.service
+    - name: etcd-member.service
       command: start
+      drop-ins:
+      - name: 10-etcd-member.conf
+        content: |
+          [Service]
+          Environment="ETCD_IMAGE_TAG=v3.1.5"
+          Environment="ETCD_OPTS=--name k8solo-01 \
+          --initial-advertise-peer-urls http://k8solo-01:2380 \
+          --initial-cluster-token k8solo-01_etcd \
+          --initial-cluster k8solo-01=http://k8solo-01:2380 \
+          --initial-cluster-state new \
+          --listen-peer-urls http://k8solo-01:2380,http://k8solo-01:7001 \
+          --listen-client-urls http://0.0.0.0:2379,http://0.0.0.0:4001 \
+          --advertise-client-urls http://k8solo-01:2379,http://k8solo-01:4001"
     - name: fleet.service
       command: stop
     - name: flanneld.service
@@ -116,7 +119,7 @@ coreos:
       - name: 50-network-config.conf
         content: |
           [Unit]
-          Requires=etcd2.service
+          Requires=etcd-member.service
           [Service]
           ExecStartPre=/usr/bin/etcdctl set /coreos.com/network/config '{"Network": "10.244.0.0/16", "SubnetLen": 24, "SubnetMin": "10.244.0.0", "Backend": {"Type": "vxlan"}}'
     - name: docker.service
@@ -136,8 +139,8 @@ coreos:
         [Unit]
         Description=Kubernetes API Server
         Documentation=https://github.com/GoogleCloudPlatform/kubernetes
-        Requires=etcd2.service docker.service flanneld.service persistent-data-checks.service
-        After=etcd2.service docker.service flanneld.service persistent-data-checks.service
+        Requires=etcd-member.service docker.service flanneld.service persistent-data-checks.service
+        After=etcd-member.service docker.service flanneld.service persistent-data-checks.service
         [Service]
         LimitNOFILE=491521
         # Check for certs
@@ -234,7 +237,7 @@ coreos:
         EnvironmentFile=/etc/environment
         Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/bin
         # Calico CNI configuration
-        ExecStartPre=/opt/sbin/calico-cfg-writer.sh /etc/cni/net.d/10-calico.conf
+        # ExecStartPre=/opt/sbin/calico-cfg-writer.sh /etc/cni/net.d/10-calico.conf
         # small hacks around for Deis Workflow
         ExecStartPre=-/bin/sh -c 'sudo mkdir -p /data/deis/minio && sudo chown 106:107 /data/deis/minio'
         # Check for binary
@@ -248,13 +251,11 @@ coreos:
           --register-node=true \
           --container_runtime=docker \
           --api_servers=http://127.0.0.1:8080 \
-          --network-plugin-dir=/etc/cni/net.d \
-          --network-plugin=cni \
           --allow_privileged=true \
           --cluster_dns=10.100.0.10 \
           --cluster_domain=cluster.local \
           --logtostderr=true \
-          --config=/data/kubernetes/manifests \
+          --pod-manifest-path=/data/kubernetes/manifests \
           --cadvisor_port=4194 \
           --healthz_bind_address=0.0.0.0 \
           --healthz_port=10248
@@ -295,29 +296,6 @@ write-files:
           cluster: remote-auth
           user: ""
         name: webhook
-      EOF
- - path: /opt/sbin/calico-cfg-writer.sh
-   permissions: '0755'
-   content: |
-      #!/bin/sh
-      set -o errexit
-      set -o nounset
-      set -o pipefail
-      #
-      CALICO_PATH_CONF=$1 # /etc/cni/net.d/10-calico.conf
-      cat >$CALICO_PATH_CONF <<EOF
-      {
-          "name": "calico-k8s-network",
-          "type": "calico",
-          "etcd_endpoints": "http://127.0.0.1:2379",
-          "log_level": "info",
-          "ipam": {
-              "type": "calico-ipam"
-          },
-          "policy": {
-              "type": "k8s"
-          }
-      }
       EOF
  - path: /opt/sbin/make-certs.sh
    permissions: '0755'
