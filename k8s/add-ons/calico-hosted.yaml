@@ -6,7 +6,7 @@ metadata:
   namespace: kube-system
 data:
   # Configure this with the location of your etcd cluster.
-  etcd_endpoints: "http://192.168.64.2:2379"
+  etcd_endpoints: "http://127.0.0.1:2379"
 
   # Configure the Calico backend to use.
   calico_backend: "bird"
@@ -112,10 +112,13 @@ spec:
             - name: FELIX_DEFAULTENDPOINTTOHOSTACTION
               value: "ACCEPT"
             # Configure the IP Pool from which Pod IPs will be chosen.
+            # it will be dinamically chnaged to the docker network
             - name: CALICO_IPV4POOL_CIDR
-              value: "192.168.0.0/16"
+              value: "CALICO_IPV4POOL_CIDR_ENV"
             - name: CALICO_IPV4POOL_IPIP
               value: "always"
+            - name: CALICO_NAT_ENABLED
+              value: "true"
             # Disable IPv6 on Kubernetes.
             - name: FELIX_IPV6SUPPORT
               value: "false"

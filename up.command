@@ -126,36 +126,26 @@ echo "..."
 echo " "
 echo "Waiting for Kubernetes node to be ready. This can take a bit..."
 i=1
-until ~/kube-solo/bin/kubectl get nodes | grep -w "k8solo-01" | grep -w "Ready" >/dev/null 2>&1; do i=$(( (i+1) %4 )); printf "\r${spin:$i:1}"; sleep .1; done
+until ~/kube-solo/bin/kubectl get nodes 2>/dev/null| grep -w "k8solo-01" | grep -w "Ready" >/dev/null 2>&1; do i=$(( (i+1) %4 )); printf "\r${spin:$i:1}"; sleep .1; done
 echo "..."
-#
 
-if [[ "${new_vm}" == "1" ]]
-then
-    # attach label to the node
-    echo " "
-    ~/kube-solo/bin/kubectl label nodes k8solo-01 node=worker1
-    # copy add-ons files
-    cp "${res_folder}"/k8s/add-ons/*.yaml ~/kube-solo/kubernetes
-    install_k8s_add_ons
-    # install Helm Tiller
-    echo " "
-    echo "Installing Helm Tiller..."
-    ~/kube-solo/bin/helm init
-    #
-    echo " "
-    echo "kubectl cluster-info:"
-    ~/kube-solo/bin/kubectl cluster-info
-    echo " "
-    echo "Cluster version:"
-    CLIENT_INSTALLED_VERSION=$(~/kube-solo/bin/kubectl version | grep "Client Version:" | awk '{print $5}' | awk -v FS='(:"|",)' '{print $2}')
-    SERVER_INSTALLED_VERSION=$(~/kube-solo/bin/kubectl version | grep "Server Version:" | awk '{print $5}' | awk -v FS='(:"|",)' '{print $2}')
-    echo "Client version: $CLIENT_INSTALLED_VERSION"
-    echo "Server version: $SERVER_INSTALLED_VERSION"
-    # remove unfinished_setup file
-    rm -f ~/kube-solo/logs/unfinished_setup > /dev/null 2>&1
-fi
-#
+# attach label to the node
+echo " "
+~/kube-solo/bin/kubectl label nodes k8solo-01 node=worker1
+# copy add-ons files
+cp "${res_folder}"/k8s/add-ons/*.yaml ~/kube-solo/kubernetes
+install_k8s_add_ons
+echo " "
+echo "kubectl cluster-info:"
+~/kube-solo/bin/kubectl cluster-info
+echo " "
+echo "Cluster version:"
+CLIENT_INSTALLED_VERSION=$(~/kube-solo/bin/kubectl version | grep "Client Version:" | awk '{print $5}' | awk -v FS='(:"|",)' '{print $2}')
+SERVER_INSTALLED_VERSION=$(~/kube-solo/bin/kubectl version | grep "Server Version:" | awk '{print $5}' | awk -v FS='(:"|",)' '{print $2}')
+echo "Client version: $CLIENT_INSTALLED_VERSION"
+echo "Server version: $SERVER_INSTALLED_VERSION"
+# remove unfinished_setup file
+rm -f ~/kube-solo/logs/unfinished_setup > /dev/null 2>&1
 
 echo " "
 echo "kubectl get nodes:"
@@ -163,11 +153,11 @@ echo "kubectl get nodes:"
 echo " "
 #
 
-cd ~/kube-solo/kubernetes
+# cd ~/kube-solo/kubernetes
 
-# open user's preferred shell
-if [[ ! -z "$SHELL" ]]; then
-  $SHELL
-else
-  /bin/bash
-fi
+# # open user's preferred shell
+# if [[ ! -z "$SHELL" ]]; then
+#   $SHELL
+# else
+#   /bin/bash
+# fi

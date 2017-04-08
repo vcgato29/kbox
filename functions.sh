@@ -35,7 +35,7 @@ fi
 
 function check_internet_from_vm(){
 #
-status=$(~/bin/corectl ssh k8solo-01 "curl -s -I https://coreos.com 2>/dev/null | head -n 1 | cut -d' ' -f2")
+status=$(~/bin/corectl ssh k8solo-01 "curl --retry 5 -s -I https://coreos.com 2>/dev/null | head -n 1 | cut -d' ' -f2")
 
 if [[ $(echo "${status//[$'\t\r\n ']}") = "200" ]]; then
     echo "Yes, internet is available ..."
@@ -223,7 +223,7 @@ if [ ! -f ~/kube-solo/bin/docker ]; then
     cd ~/kube-solo/bin
     echo " "
     echo "Downloading docker $DOCKER_VERSION client for macOS"
-    curl -o ~/kube-solo/bin/docker https://get.docker.com/builds/Darwin/x86_64/docker-$DOCKER_VERSION
+    curl --progress-bar -o ~/kube-solo/bin/docker https://get.docker.com/builds/Darwin/x86_64/docker-$DOCKER_VERSION
     # Make it executable
     chmod +x ~/kube-solo/bin/docker
 else
@@ -437,7 +437,7 @@ k8s_upgrade=1
 # extracting Kubernetes files
 echo "Extracting Kubernetes $K8S_VERSION files ..."
 tar xvf  kubernetes.tar.gz --strip=4 kubernetes/platforms/darwin/amd64/kubectl
-mv -f kubectl ~/kube-solo/kube
+cp kubectl ~/kube-solo/kube
 chmod 755 ~/kube-solo/bin/kubectl
 #
 tar xvf kubernetes.tar.gz --strip=2 kubernetes/server/kubernetes-server-linux-amd64.tar.gz
@@ -451,7 +451,7 @@ rm -f kubernetes-server-linux-amd64.tar.gz
 curl -L https://storage.googleapis.com/kubernetes-release/easy-rsa/easy-rsa.tar.gz > easy-rsa.tar.gz
 #
 tar czvf kube.tgz *
-mv -f kube.tgz ~/kube-solo/kube/
+cp kube.tgz ~/kube-solo/kube/
 # clean up tmp folder
 rm -rf ~/kube-solo/tmp/*
 echo " "
@@ -512,21 +512,11 @@ echo " "
 echo "Creating kube-system namespace ..."
 ~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/kube-system-ns.yaml > /dev/null 2>&1
 
-# MOD
-#echo " "
-#echo "Configuring calico pool ..."
-#docker_ip=$(~/bin/corectl ssh k8solo-01 "ip addr show docker0 |grep -Po 'inet \K[\d.]+'/24")
-#echo "DOCKER0 Network IP: $docker_ip"
 #~/bin/corectl ssh k8solo-01 "ETCD_ENDPOINTS=http://127.0.0.1:2379 /data/opt/bin/calicoctl pool add $docker_ip --nat-outgoing"
-
-echo " "
-echo "Installing calico ..."
-~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/calico-hosted.yaml
 
 # echo " "
 #echo "Configuring the rbac super user ..."
 #SYSTEM_TOKEN=$(~/kube-solo/bin/kubectl -n kube-system get secrets -o yaml |grep token: |awk {'print $2'} | base64 -D)
-vm_ip=$(~/bin/corectl q -i k8solo-01)
 
 #echo "SYSTEM-TOKEN: ${SYSTEM_TOKEN}"
 #~/kube-solo/bin/kubectl config set-cluster https --server=https://$vm_ip:6443 --insecure-skip-tls-verify=true
@@ -534,12 +524,51 @@ vm_ip=$(~/bin/corectl q -i k8solo-01)
 #~/kube-solo/bin/kubectl config set-context cluster-admin --cluster https --user cluster-admin
 #~/kube-solo/bin/kubectl config use-context cluster-admin
 
+# echo " "
+# echo "Configuring calico network ..."
+# ~/bin/corectl ssh k8solo-01 "
+# cat <<EOF |ETCD_ENDPOINTS=http://127.0.0.1:2379 /data/opt/bin/calicoctl create -f -
+# apiVersion: v1
+# kind: ipPool
+# metadata:
+#   cidr: $DOCKER_NETWORK
+# spec:
+#   ipip:
+#     enabled: true
+#     mode: always
+#   nat-outgoing: true
+#   disabled: false
+# EOF" 2&>/dev/null 
+
+echo " "
+echo "Installing calico ..."
+DOCKER_NETWORK=$(~/bin/corectl ssh k8solo-01 "ip addr show docker0 |grep -Po 'inet \K[\d.]+'/24" | tr -d '\015')
+echo "DOCKER0 Network: $DOCKER_NETWORK"
+~/bin/corectl ssh k8solo-01 "sudo cp /data/opt/bin/loopback /etc/cni/net.d/loopback 2>/dev/null"
+~/bin/corectl ssh k8solo-01 "sudo cp /data/opt/bin/host-local /etc/cni/net.d/host-local 2>/dev/null"
+~/bin/corectl ssh k8solo-01 "sudo cp /data/opt/bin/flannel /etc/cni/net.d/flannel 2>/dev/null"
+~/bin/corectl ssh k8solo-01 "sudo cp /data/opt/bin/calico /etc/cni/net.d/calico 2>/dev/null"
+~/bin/corectl ssh k8solo-01 "sudo cp /data/opt/bin/calico-ipam /etc/cni/net.d/calico-ipam 2>/dev/null"
+sed -i'' -e "s#CALICO_IPV4POOL_CIDR_ENV#$DOCKER_NETWORK#g" ~/kube-solo/kubernetes/calico-hosted.yaml
+~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/calico-hosted.yaml
+
 #echo " "
 #echo "Installing RBAC cluster policies ..."
 #~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/cluster-role.yaml
 #~/kube-solo/bin/kubectl create -f ~/kube-solo/kubernetes/cluster-role-binding.yaml
 #~/kube-solo/bin/kubectl config use-context kube-solo
-# END MOD
+
+echo " "
+echo "Waiting for calico-node to be ready ..."
+spin='-\|/'
+i=1
+until ~/kube-solo/bin/kubectl get --no-headers pod -l k8s-app=calico-node -n kube-system |awk {'print $2'} |grep '2/2';
+do
+  i=$(( (i+1) %4 ));
+  printf "\r${spin:$i:1}";
+  sleep .1;
+done
+echo "Done ..."
 
 echo " "
 echo "Installing DNS Addon ..."

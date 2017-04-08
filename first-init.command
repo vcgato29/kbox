@@ -94,7 +94,7 @@ echo "..."
 echo " "
 echo "Waiting for Kubernetes node to be ready. This can take a bit..."
 i=1
-until ~/kube-solo/bin/kubectl get nodes | grep -w "k8solo-01" | grep -w "Ready" >/dev/null 2>&1; do i=$(( (i+1) %4 )); printf "\r${spin:$i:1}"; sleep .1; done
+until ~/kube-solo/bin/kubectl get nodes 2>/dev/null| grep -w "k8solo-01" | grep -w "Ready" >/dev/null 2>&1; do i=$(( (i+1) %4 )); printf "\r${spin:$i:1}"; sleep .1; done
 echo "..."
 echo " "
 
